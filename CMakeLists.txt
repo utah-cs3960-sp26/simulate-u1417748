@@ -51,3 +51,7 @@ add_test(NAME headless_tunneling_stress
     COMMAND simulate_headless --scene main --balls 500 --seed 42 --restitution 0.5 --frames 2000 --metrics)
 add_test(NAME headless_long_soak
     COMMAND simulate_headless --scene main --balls 1000 --seed 1 --restitution 0.3 --frames 12000 --metrics)
+
+# Also test via unified binary --headless flag
+add_test(NAME headless_via_simulate
+    COMMAND simulate --headless --scene main --balls 500 --seed 1 --restitution 0.3 --frames 1000 --metrics)

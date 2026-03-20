@@ -163,6 +163,120 @@ void test_metrics() {
     CHECK(!m.has_nan, "metrics no NaN");
 }
 
+void test_fast_wall_impact() {
+    // A ball moving very fast toward a wall should not tunnel through
+    PhysicsWorld world;
+    world.config.gravity = 0.0f;
+    world.config.substeps = 8;
+    world.config.dt = 1.0f / 60.0f;
+    world.config.restitution = 0.5f;
+    world.config.damping = 1.0f;
+
+    // Floor at y=500
+    world.walls.push_back({Vec2{0, 500}, Vec2{600, 500}});
+
+    Ball b;
+    b.pos = {300, 100};
+    b.vel = {0, 1500}; // very fast downward
+    b.radius = 5;
+    b.inv_mass = 1;
+    world.balls.push_back(b);
+
+    for (int i = 0; i < 120; ++i) world.step();
+
+    // Ball must stay above the floor
+    CHECK(world.balls[0].pos.y < 500.0f, "fast ball does not tunnel through wall");
+    CHECK(world.balls[0].pos.is_finite(), "fast ball position is finite");
+    CHECK(world.balls[0].vel.is_finite(), "fast ball velocity is finite");
+}
+
+void test_wall_corner_interaction() {
+    // A ball at the junction of two walls (corner) should not escape
+    PhysicsWorld world;
+    world.config.gravity = 500.0f;
+    world.config.substeps = 8;
+    world.config.dt = 1.0f / 60.0f;
+    world.config.restitution = 0.3f;
+
+    // Box corner: floor + right wall
+    world.walls.push_back({Vec2{0, 300}, Vec2{400, 300}});   // floor
+    world.walls.push_back({Vec2{400, 0}, Vec2{400, 300}});   // right wall
+
+    Ball b;
+    b.pos = {390, 290};  // near corner
+    b.vel = {100, 100};  // aimed into corner
+    b.radius = 5;
+    b.inv_mass = 1;
+    world.balls.push_back(b);
+
+    for (int i = 0; i < 300; ++i) world.step();
+
+    CHECK(world.balls[0].pos.x < 400.0f, "ball stays inside corner (x)");
+    CHECK(world.balls[0].pos.y < 300.0f, "ball stays inside corner (y)");
+    CHECK(world.balls[0].pos.is_finite(), "corner ball position is finite");
+}
+
+void test_pile_height_restitution_invariance() {
+    // Same scene at low and high restitution should produce similar pile heights
+    auto run_sim = [](float restitution) -> float {
+        PhysicsWorld world;
+        SceneParams p;
+        p.ball_count = 200; // fewer balls for speed in unit tests
+        p.seed = 1;
+        p.restitution = restitution;
+        setup_scene(world, p);
+        world.config.substeps = 8;
+
+        for (int i = 0; i < 3000; ++i) world.step();
+
+        SimMetrics m = world.compute_metrics();
+        return m.pile_height;
+    };
+
+    float h_low = run_sim(0.1f);
+    float h_high = run_sim(0.8f);
+
+    float max_h = std::max(h_low, h_high);
+    float diff_frac = std::abs(h_low - h_high) / max_h;
+
+    printf("  Pile height: low_rest=%.1f high_rest=%.1f diff=%.1f%%\n",
+           h_low, h_high, diff_frac * 100.0f);
+
+    CHECK(diff_frac < 0.10f, "pile height within 10% across restitution values");
+}
+
+void test_stack_compression() {
+    // A vertical stack of balls on a floor should settle without explosion
+    PhysicsWorld world;
+    world.config.gravity = 500.0f;
+    world.config.substeps = 8;
+    world.config.dt = 1.0f / 60.0f;
+    world.config.restitution = 0.3f;
+
+    world.walls.push_back({Vec2{0, 400}, Vec2{200, 400}}); // floor
+
+    for (int i = 0; i < 20; ++i) {
+        Ball b;
+        b.pos = {100, (float)(390 - i * 11)};
+        b.vel = {0, 0};
+        b.radius = 5;
+        b.inv_mass = 1;
+        b.color = 0xFFFFFFFF;
+        world.balls.push_back(b);
+    }
+
+    for (int i = 0; i < 600; ++i) world.step();
+
+    SimMetrics m = world.compute_metrics();
+    CHECK(!m.has_nan, "stack no NaN");
+    CHECK(m.max_speed < 500.0f, "stack speed bounded");
+    CHECK(m.max_penetration < 3.0f, "stack penetration bounded");
+    // All balls should stay above floor
+    for (auto& b : world.balls) {
+        CHECK(b.pos.y < 400.0f, "stack ball above floor");
+    }
+}
+
 int main() {
     printf("Running physics unit tests...\n\n");
 
@@ -173,6 +287,10 @@ int main() {
     test_no_nan_after_many_steps();
     test_scene_setup();
     test_metrics();
+    test_fast_wall_impact();
+    test_wall_corner_interaction();
+    test_pile_height_restitution_invariance();
+    test_stack_compression();
 
     printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
 

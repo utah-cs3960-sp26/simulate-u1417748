@@ -26,9 +26,12 @@ cmake --build build -j
 Run the same physics without a window, printing metrics:
 
 ```bash
-./build/simulate_headless --scene main --balls 1000 --seed 1 --restitution 0.3 --frames 6000 --metrics
-./build/simulate_headless --verbose --frames 3000  # periodic status every 100 frames
+./build/simulate --headless --scene main --balls 1000 --seed 1 --restitution 0.3 --frames 6000 --metrics
+./build/simulate --headless --verbose --frames 3000  # periodic status every 300 frames
+./build/simulate_headless --scene main --balls 1000 --seed 1 --restitution 0.2 --frames 6000 --metrics
 ```
+
+Both `./build/simulate --headless` and `./build/simulate_headless` use the same physics core and produce identical results.
 
 ### CLI Flags
 
@@ -39,6 +42,7 @@ Run the same physics without a window, printing metrics:
 | `--restitution F` | 0.3   | Coefficient of restitution [0..1]      |
 | `--scene NAME`  | main    | Scene name                             |
 | `--substeps N`  | 8       | Physics substeps per frame             |
+| `--headless`    | off     | Run without window (simulate only)     |
 | `--frames N`    | 3000    | Frames to simulate (headless only)     |
 | `--metrics`     | off     | Print final metrics (headless only)    |
 | `--verbose`     | off     | Print periodic metrics (headless only) |
@@ -74,14 +78,17 @@ ctest --test-dir build --output-on-failure
 ```
 
 Tests include:
-- **unit_tests**: Vec2, gravity, ball-wall bounce, ball-ball collision, NaN checks, scene setup
+- **unit_tests**: Vec2, gravity, ball-wall bounce, ball-ball collision, NaN checks, scene setup, fast wall impact, corner interaction, pile height restitution invariance, stack compression
 - **headless_main_default**: 1000 balls, 3000 frames, restitution 0.3
 - **headless_low_restitution**: 1000 balls, 6000 frames, restitution 0.1
 - **headless_high_restitution**: 1000 balls, 6000 frames, restitution 0.8
 - **headless_tunneling_stress**: 500 balls, 2000 frames, seed 42
 - **headless_long_soak**: 1000 balls, 12000 frames, stability soak
+- **headless_via_simulate**: 500 balls via `simulate --headless`, 1000 frames
 
 Each headless test validates: no NaN/Inf, no escaped balls, bounded penetration (<5), bounded speed (<1500).
+
+The unit test `test_pile_height_restitution_invariance` automatically compares pile heights at restitution 0.1 and 0.8 and asserts they differ by less than 10%.
 
 ## Architecture
 
@@ -89,8 +96,8 @@ Each headless test validates: no NaN/Inf, no escaped balls, bounded penetration 
 - `src/spatial_hash.h/cpp` — Spatial hash grid for O(n) broadphase collision detection
 - `src/scene.h/cpp` — Scene setup (container walls, ball spawning, RNG)
 - `src/renderer.h/cpp` — SDL3 rendering
-- `src/main.cpp` — Interactive SDL application
-- `src/headless_main.cpp` — Headless validation/experiment runner
+- `src/main.cpp` — Interactive SDL application + headless mode (`--headless`)
+- `src/headless_main.cpp` — Standalone headless validation/experiment runner
 - `src/vec2.h` — 2D vector math
 - `tests/test_physics.cpp` — Unit tests
 

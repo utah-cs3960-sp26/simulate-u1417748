@@ -179,9 +179,19 @@ void PhysicsWorld::solve_ball_wall(int i, const Wall& w, float sub_dt) {
 
     if (dist2 >= ball.radius * ball.radius) return;
     if (dist2 < 1e-12f) {
-        // Ball center exactly on wall - push away using wall normal
+        // Ball center exactly on wall - push away from wall
+        // Use velocity to pick the correct side; if velocity is zero,
+        // use the wall's left-hand normal (consistent for CW containers).
         Vec2 wall_dir = (w.b - w.a).normalized();
-        delta = {-wall_dir.y, wall_dir.x};
+        Vec2 perp = {-wall_dir.y, wall_dir.x}; // one perpendicular
+        // Pick side: if ball is moving into the wall, push opposite to velocity component
+        float vel_dot = ball.vel.dot(perp);
+        if (std::abs(vel_dot) > 1e-6f) {
+            delta = (vel_dot < 0.0f) ? perp * -1.0f : perp;
+        } else {
+            // Fallback: push upward (away from gravity) or use perp
+            delta = (perp.y < 0.0f) ? perp : perp * -1.0f;
+        }
         dist2 = 1e-6f;
     }
 

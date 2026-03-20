@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <algorithm>
 #include <chrono>
 
 static void print_usage() {
@@ -27,17 +28,17 @@ int main(int argc, char* argv[]) {
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--balls") == 0 && i + 1 < argc)
-            scene_params.ball_count = atoi(argv[++i]);
+            scene_params.ball_count = std::max(1, atoi(argv[++i]));
         else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc)
             scene_params.seed = (uint32_t)atoi(argv[++i]);
         else if (strcmp(argv[i], "--restitution") == 0 && i + 1 < argc)
-            scene_params.restitution = (float)atof(argv[++i]);
+            scene_params.restitution = std::clamp((float)atof(argv[++i]), 0.0f, 1.0f);
         else if (strcmp(argv[i], "--scene") == 0 && i + 1 < argc)
             scene_params.name = argv[++i];
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc)
-            frames = atoi(argv[++i]);
+            frames = std::max(1, atoi(argv[++i]));
         else if (strcmp(argv[i], "--substeps") == 0 && i + 1 < argc)
-            substeps = atoi(argv[++i]);
+            substeps = std::max(1, atoi(argv[++i]));
         else if (strcmp(argv[i], "--metrics") == 0)
             metrics = true;
         else if (strcmp(argv[i], "--verbose") == 0)
