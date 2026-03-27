@@ -240,6 +240,86 @@ void Renderer::draw_start_screen(const Button& btn_start, const Button& btn_load
     SDL_RenderPresent(renderer);
 }
 
+void Renderer::draw_color_edit(const PhysicsWorld& world, const uint32_t* palette,
+                               int palette_count, int selected_color, float brush_radius,
+                               const Button& btn_done) {
+    SDL_SetRenderDrawColor(renderer, 20, 20, 30, 255);
+    SDL_RenderClear(renderer);
+
+    // Draw walls
+    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+    for (auto& w : world.walls) {
+        SDL_RenderLine(renderer, w.a.x, w.a.y, w.b.x, w.b.y);
+        SDL_RenderLine(renderer, w.a.x + 1, w.a.y, w.b.x + 1, w.b.y);
+        SDL_RenderLine(renderer, w.a.x, w.a.y + 1, w.b.x, w.b.y + 1);
+    }
+
+    // Draw balls (no sleep dimming — show true colors)
+    for (auto& b : world.balls) {
+        draw_filled_circle(b.pos.x, b.pos.y, b.radius, b.color);
+    }
+
+    // Brush cursor
+    float mx, my;
+    SDL_GetMouseState(&mx, &my);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 100);
+    for (int angle = 0; angle < 64; ++angle) {
+        float a = (float)angle * 6.2832f / 64.0f;
+        float px = mx + brush_radius * cosf(a);
+        float py = my + brush_radius * sinf(a);
+        float a2 = (float)(angle + 1) * 6.2832f / 64.0f;
+        float px2 = mx + brush_radius * cosf(a2);
+        float py2 = my + brush_radius * sinf(a2);
+        SDL_RenderLine(renderer, px, py, px2, py2);
+    }
+
+    // Palette bar at bottom
+    float swatch_size = 40.0f;
+    float gap = 6.0f;
+    float total_w = palette_count * (swatch_size + gap) - gap;
+    float palette_x = (width_ - total_w) / 2.0f;
+    float palette_y = height_ - 60.0f;
+
+    // Background strip
+    SDL_FRect pal_bg = {palette_x - 10, palette_y - 10, total_w + 20, swatch_size + 20};
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
+    SDL_RenderFillRect(renderer, &pal_bg);
+
+    for (int i = 0; i < palette_count; ++i) {
+        float sx = palette_x + i * (swatch_size + gap);
+        uint32_t c = palette[i];
+        SDL_SetRenderDrawColor(renderer, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF, 255);
+        SDL_FRect swatch = {sx, palette_y, swatch_size, swatch_size};
+        SDL_RenderFillRect(renderer, &swatch);
+
+        // Selection highlight
+        if (i == selected_color) {
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_FRect sel = {sx - 3, palette_y - 3, swatch_size + 6, swatch_size + 6};
+            SDL_RenderRect(renderer, &sel);
+            SDL_FRect sel2 = {sx - 2, palette_y - 2, swatch_size + 4, swatch_size + 4};
+            SDL_RenderRect(renderer, &sel2);
+        }
+    }
+
+    // HUD text
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    draw_bitmap_string("PAINT MODE", 10, 10, 3);
+
+    SDL_SetRenderDrawColor(renderer, 180, 180, 200, 255);
+    draw_bitmap_string("CLICK/DRAG TO PAINT   SCROLL:BRUSH SIZE   1-9:COLORS", 10, 42, 1);
+
+    // Brush size indicator
+    char buf[32];
+    snprintf(buf, sizeof(buf), "BRUSH: %.0f", brush_radius);
+    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+    draw_bitmap_string(buf, width_ - 180, 10, 2);
+
+    draw_button(btn_done);
+
+    SDL_RenderPresent(renderer);
+}
+
 void Renderer::draw_end_screen(const std::string& saved_path, const Button& btn_show,
                                const Button& btn_restart, const Button& btn_quit) {
     SDL_SetRenderDrawColor(renderer, 20, 20, 30, 255);

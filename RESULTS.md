@@ -9,5 +9,15 @@ I did not need to make any edits to my prompt and it was able to successfully lo
 
 # Week 11
 
-## Look through the history of all edits you ever made to your prompt. Detail the changes you made and why you made them. What Amp misbehaviors did you notice? What and why did you add to the prompt file? Did you remove anything?
+## Detail the changes you made and why you made them. What Amp misbehaviors did you notice? What and why did you add to the prompt file? Did you remove anything?
 
+I made it so that you can upload a CSV to start from and you can draw onto the dots at the end before saving the CSV so that you can:
+
+1) run the simulation
+2) draw on the dots at the final position 
+3) re-load the app using that CSV
+4) watch the dots land into their correct positions
+
+Also, the original prompts did not have a "saved" velocity which caused the balls to fall randomly every time and not in the same spot. I did not have to remove anything, but had to do a lot of back and forth with AMP to discover bug causes and to add some cool features like painting to help with testing the physics and consistency.  
+
+Overall, I got a working physics simulator that can consistently re-run the ball path and location to animate a drawn design.

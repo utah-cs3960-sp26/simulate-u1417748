@@ -134,13 +134,16 @@ int main(int argc, char* argv[]) {
     }
     printf("Loaded %d balls from %s\n", (int)world.balls.size(), input_csv.c_str());
 
-    // Save initial positions
+    // Save initial state
     std::vector<Vec2> initial_positions;
+    std::vector<Vec2> initial_velocities;
     std::vector<float> initial_radii;
     initial_positions.reserve(world.balls.size());
+    initial_velocities.reserve(world.balls.size());
     initial_radii.reserve(world.balls.size());
     for (const auto& b : world.balls) {
         initial_positions.push_back(b.pos);
+        initial_velocities.push_back(b.vel);
         initial_radii.push_back(b.radius);
     }
 
@@ -166,7 +169,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    out << "x,y,radius,color\n";
+    out << "x,y,vx,vy,radius,color\n";
     for (size_t i = 0; i < world.balls.size(); ++i) {
         // Sample at final position, scaled to image space
         float img_x = world.balls[i].pos.x * scale_x;
@@ -174,10 +177,12 @@ int main(int argc, char* argv[]) {
         uint32_t color = img.sample(img_x, img_y);
         uint32_t rgb = color & 0x00FFFFFFu;
 
-        // Write with original starting position but new color
+        // Write with original starting position/velocity but new color
         out << initial_positions[i].x << "," << initial_positions[i].y << ","
+            << initial_velocities[i].x << "," << initial_velocities[i].y << ","
             << initial_radii[i] << ","
-            << std::uppercase << std::hex << std::setfill('0') << std::setw(6) << rgb << "\n";
+            << std::uppercase << std::hex << std::setfill('0') << std::setw(6) << rgb
+            << std::dec << "\n";
     }
     out.close();
 

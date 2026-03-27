@@ -7,6 +7,8 @@
 #include <cstring>
 #include <algorithm>
 #include <string>
+#include <vector>
+#include <cmath>
 
 static void print_usage() {
     printf("Usage: simulate [options]\n");
@@ -36,7 +38,32 @@ static int run_headless(const SceneParams& scene_params, int substeps, int frame
                         bool metrics, bool verbose,
                         const std::string& load_csv, const std::string& save_csv);
 
-enum class AppState { START_SCREEN, SIMULATING, END_SCREEN };
+enum class AppState { START_SCREEN, SIMULATING, COLOR_EDIT, END_SCREEN };
+
+static const uint32_t PALETTE[] = {
+    0xFF0000, // red
+    0xFF8800, // orange
+    0xFFFF00, // yellow
+    0x00CC00, // green
+    0x0088FF, // blue
+    0x8800FF, // purple
+    0xFF00FF, // magenta
+    0xFFFFFF, // white
+    0x000000, // black
+};
+static const int PALETTE_COUNT = sizeof(PALETTE) / sizeof(PALETTE[0]);
+
+static void paint_balls(PhysicsWorld& world, float mx, float my,
+                        float brush_radius, uint32_t color) {
+    float r2 = brush_radius * brush_radius;
+    for (auto& b : world.balls) {
+        float dx = b.pos.x - mx;
+        float dy = b.pos.y - my;
+        if (dx * dx + dy * dy <= r2) {
+            b.color = 0xFF000000u | color;
+        }
+    }
+}
 
 // Callback data for SDL file dialog
 struct FileDialogResult {
@@ -87,7 +114,7 @@ int main(int argc, char* argv[]) {
         else if (strcmp(argv[i], "--headless") == 0)
             headless = true;
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc)
-            frames = std::max(1, atoi(argv[++i]));
+            frames = std::max(0, atoi(argv[++i]));
         else if (strcmp(argv[i], "--metrics") == 0)
             metrics_flag = true;
         else if (strcmp(argv[i], "--verbose") == 0)
@@ -144,6 +171,37 @@ int main(int argc, char* argv[]) {
     Button btn_quit    = {{btn_x, 570, btn_w, btn_h}, "QUIT",
                           0xC0552222, 0xFFAA3333};
 
+    // Color edit state
+    Button btn_done = {{btn_x, 10, btn_w, 50}, "SAVE AND FINISH",
+                       0xC0225522, 0xFF33AA33};
+    int selected_color = 0;
+    float brush_radius = 20.0f;
+    bool painting = false;
+
+    // Track initial state for saving with painted colors
+    std::vector<Vec2> initial_positions;
+    std::vector<Vec2> initial_velocities;
+    std::vector<float> initial_radii;
+
+    auto capture_initial = [&]() {
+        initial_positions.clear();
+        initial_velocities.clear();
+        initial_radii.clear();
+        initial_positions.reserve(world.balls.size());
+        initial_velocities.reserve(world.balls.size());
+        initial_radii.reserve(world.balls.size());
+        for (const auto& b : world.balls) {
+            initial_positions.push_back(b.pos);
+            initial_velocities.push_back(b.vel);
+            initial_radii.push_back(b.radius);
+        }
+    };
+
+    // Capture for command-line loaded CSV (already set up above)
+    if (state == AppState::SIMULATING) {
+        capture_initial();
+    }
+
     std::string saved_path;
     FileDialogResult dialog_result;
 
@@ -176,6 +234,7 @@ int main(int argc, char* argv[]) {
                         setup_scene(world, scene_params);
                         if (load_scene_csv(world, dialog_result.path, scene_params.restitution)) {
                             load_csv = dialog_result.path;
+                            capture_initial();
                             printf("Loaded scene from: %s (%d balls)\n",
                                    load_csv.c_str(), (int)world.balls.size());
                             state = AppState::SIMULATING;
@@ -190,6 +249,7 @@ int main(int argc, char* argv[]) {
                 if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN && ev.button.button == SDL_BUTTON_LEFT) {
                     if (btn_start.contains(mx, my)) {
                         setup_scene(world, scene_params);
+                        capture_initial();
                         state = AppState::SIMULATING;
                         frame = 0;
                         load_csv.clear();
@@ -219,6 +279,7 @@ int main(int argc, char* argv[]) {
                             setup_scene(world, scene_params);
                             if (!load_csv.empty())
                                 load_scene_csv(world, load_csv, scene_params.restitution);
+                            capture_initial();
                             frame = 0;
                             break;
                         case SDLK_S:
@@ -227,18 +288,10 @@ int main(int argc, char* argv[]) {
                         case SDLK_D:
                             show_debug = !show_debug;
                             break;
-                        case SDLK_E: {
-                            // End simulation → save and show end screen
-                            saved_path = save_csv.empty() ? get_default_save_path() : save_csv;
-                            if (save_scene_csv(world, saved_path)) {
-                                printf("Saved results to: %s\n", saved_path.c_str());
-                            } else {
-                                fprintf(stderr, "Failed to save CSV: %s\n", saved_path.c_str());
-                                saved_path = "(SAVE FAILED)";
-                            }
-                            state = AppState::END_SCREEN;
+                        case SDLK_E:
+                            state = AppState::COLOR_EDIT;
+                            painting = false;
                             break;
-                        }
                         case SDLK_UP:
                             world.config.restitution = std::min(1.0f, world.config.restitution + 0.05f);
                             printf("Restitution: %.2f\n", world.config.restitution);
@@ -248,6 +301,60 @@ int main(int argc, char* argv[]) {
                             printf("Restitution: %.2f\n", world.config.restitution);
                             break;
                         default: break;
+                    }
+                }
+
+            } else if (state == AppState::COLOR_EDIT) {
+                if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN && ev.button.button == SDL_BUTTON_LEFT) {
+                    if (btn_done.contains(mx, my)) {
+                        // Save with initial positions + painted colors
+                        saved_path = save_csv.empty() ? get_default_save_path() : save_csv;
+                        if (save_scene_csv_with_positions(world, initial_positions,
+                                                         initial_velocities,
+                                                         initial_radii, saved_path)) {
+                            printf("Saved painted scene to: %s\n", saved_path.c_str());
+                        } else {
+                            fprintf(stderr, "Failed to save CSV: %s\n", saved_path.c_str());
+                            saved_path = "(SAVE FAILED)";
+                        }
+                        state = AppState::END_SCREEN;
+                    } else {
+                        // Check palette click
+                        float swatch_size = 40.0f, gap = 6.0f;
+                        float total_w = PALETTE_COUNT * (swatch_size + gap) - gap;
+                        float pal_x = (W - total_w) / 2.0f;
+                        float pal_y = H - 60.0f;
+                        bool clicked_palette = false;
+                        for (int i = 0; i < PALETTE_COUNT; ++i) {
+                            float sx = pal_x + i * (swatch_size + gap);
+                            if (mx >= sx && mx < sx + swatch_size &&
+                                my >= pal_y && my < pal_y + swatch_size) {
+                                selected_color = i;
+                                clicked_palette = true;
+                                break;
+                            }
+                        }
+                        if (!clicked_palette) {
+                            painting = true;
+                            paint_balls(world, mx, my, brush_radius, PALETTE[selected_color]);
+                        }
+                    }
+                }
+                if (ev.type == SDL_EVENT_MOUSE_BUTTON_UP && ev.button.button == SDL_BUTTON_LEFT) {
+                    painting = false;
+                }
+                if (ev.type == SDL_EVENT_MOUSE_MOTION && painting) {
+                    paint_balls(world, mx, my, brush_radius, PALETTE[selected_color]);
+                }
+                if (ev.type == SDL_EVENT_MOUSE_WHEEL) {
+                    brush_radius = std::clamp(brush_radius + ev.wheel.y * 5.0f, 5.0f, 200.0f);
+                }
+                if (ev.type == SDL_EVENT_KEY_DOWN) {
+                    if (ev.key.key == SDLK_ESCAPE) {
+                        state = AppState::SIMULATING;
+                    } else if (ev.key.key >= SDLK_1 && ev.key.key <= SDLK_9) {
+                        int idx = ev.key.key - SDLK_1;
+                        if (idx < PALETTE_COUNT) selected_color = idx;
                     }
                 }
 
@@ -310,6 +417,11 @@ int main(int argc, char* argv[]) {
                        metrics.max_speed, metrics.max_penetration,
                        metrics.total_kinetic_energy, metrics.escaped_count);
             }
+
+        } else if (state == AppState::COLOR_EDIT) {
+            btn_done.hovered = btn_done.contains(mx, my);
+            ren.draw_color_edit(world, PALETTE, PALETTE_COUNT, selected_color,
+                                brush_radius, btn_done);
 
         } else if (state == AppState::END_SCREEN) {
             btn_show.hovered = btn_show.contains(mx, my);

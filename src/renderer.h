@@ -24,6 +24,9 @@ public:
               bool paused, bool show_debug, float fps);
 
     void draw_start_screen(const Button& btn_start, const Button& btn_load);
+    void draw_color_edit(const PhysicsWorld& world, const uint32_t* palette,
+                         int palette_count, int selected_color, float brush_radius,
+                         const Button& btn_done);
     void draw_end_screen(const std::string& saved_path, const Button& btn_show,
                          const Button& btn_restart, const Button& btn_quit);
 

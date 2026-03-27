@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <limits>
 
 // Simple xorshift32 for deterministic RNG
 struct Rng {
@@ -185,8 +186,9 @@ bool load_scene_csv(PhysicsWorld& world, const std::string& path, float restitut
     setup_walls_and_bounds(world);
 
     std::string line;
-    // Skip header
+    // Read header to detect format
     if (!std::getline(file, line)) return true;
+    bool has_velocity = (line.find("vx") != std::string::npos);
 
     while (std::getline(file, line)) {
         if (line.empty()) continue;
@@ -202,6 +204,14 @@ bool load_scene_csv(PhysicsWorld& world, const std::string& path, float restitut
 
         if (!std::getline(ss, token, ',')) continue;
         b.pos.y = std::stof(token);
+
+        if (has_velocity) {
+            if (!std::getline(ss, token, ',')) continue;
+            b.vel.x = std::stof(token);
+
+            if (!std::getline(ss, token, ',')) continue;
+            b.vel.y = std::stof(token);
+        }
 
         if (!std::getline(ss, token, ',')) continue;
         b.radius = std::stof(token);
@@ -219,11 +229,37 @@ bool save_scene_csv(const PhysicsWorld& world, const std::string& path) {
     std::ofstream file(path);
     if (!file.is_open()) return false;
 
-    file << "x,y,radius,color\n";
+    file << std::setprecision(std::numeric_limits<float>::max_digits10);
+    file << "x,y,vx,vy,radius,color\n";
     for (const auto& b : world.balls) {
         uint32_t rgb = b.color & 0x00FFFFFFu;
-        file << b.pos.x << "," << b.pos.y << "," << b.radius << ","
-             << std::uppercase << std::hex << std::setfill('0') << std::setw(6) << rgb << "\n";
+        file << b.pos.x << "," << b.pos.y << ","
+             << b.vel.x << "," << b.vel.y << ","
+             << b.radius << ","
+             << std::uppercase << std::hex << std::setfill('0') << std::setw(6) << rgb
+             << std::dec << "\n";
+    }
+    return true;
+}
+
+bool save_scene_csv_with_positions(const PhysicsWorld& world,
+                                   const std::vector<Vec2>& positions,
+                                   const std::vector<Vec2>& velocities,
+                                   const std::vector<float>& radii,
+                                   const std::string& path) {
+    std::ofstream file(path);
+    if (!file.is_open()) return false;
+
+    file << std::setprecision(std::numeric_limits<float>::max_digits10);
+    file << "x,y,vx,vy,radius,color\n";
+    size_t n = std::min({positions.size(), velocities.size(), world.balls.size()});
+    for (size_t i = 0; i < n; ++i) {
+        uint32_t rgb = world.balls[i].color & 0x00FFFFFFu;
+        file << positions[i].x << "," << positions[i].y << ","
+             << velocities[i].x << "," << velocities[i].y << ","
+             << radii[i] << ","
+             << std::uppercase << std::hex << std::setfill('0') << std::setw(6) << rgb
+             << std::dec << "\n";
     }
     return true;
 }

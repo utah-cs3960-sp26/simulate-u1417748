@@ -18,3 +18,11 @@ bool load_scene_csv(PhysicsWorld& world, const std::string& path, float restitut
 
 // Save current ball positions to a CSV file; returns true on success.
 bool save_scene_csv(const PhysicsWorld& world, const std::string& path);
+
+// Save custom positions/velocities with current ball colors to a CSV file.
+// Writes positions[i], velocities[i] with world.balls[i].color.
+bool save_scene_csv_with_positions(const PhysicsWorld& world,
+                                   const std::vector<Vec2>& positions,
+                                   const std::vector<Vec2>& velocities,
+                                   const std::vector<float>& radii,
+                                   const std::string& path);

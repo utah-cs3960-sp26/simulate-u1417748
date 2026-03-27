@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
         else if (strcmp(argv[i], "--scene") == 0 && i + 1 < argc)
             scene_params.name = argv[++i];
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc)
-            frames = std::max(1, atoi(argv[++i]));
+            frames = std::max(0, atoi(argv[++i]));
         else if (strcmp(argv[i], "--substeps") == 0 && i + 1 < argc)
             substeps = std::max(1, atoi(argv[++i]));
         else if (strcmp(argv[i], "--metrics") == 0)
