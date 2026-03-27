@@ -1,6 +1,9 @@
 #include "scene.h"
 #include <cmath>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
 
 // Simple xorshift32 for deterministic RNG
 struct Rng {
@@ -124,4 +127,103 @@ void setup_scene(PhysicsWorld& world, const SceneParams& params) {
     world.bound_right = W + 200;
     world.bound_top = -300;
     world.bound_bottom = H + 400;
+}
+
+static void setup_walls_and_bounds(PhysicsWorld& world) {
+    const float W = 1200.0f;
+    const float H = 800.0f;
+
+    float left = 80.0f;
+    float right = W - 80.0f;
+    float top_y = 30.0f;
+    float funnel_start_y = 350.0f;
+    float funnel_end_y = 500.0f;
+    float basin_left = 300.0f;
+    float basin_right = 900.0f;
+    float bottom_y = H - 40.0f;
+
+    world.walls.push_back({Vec2{left, top_y}, Vec2{left, funnel_start_y}});
+    world.walls.push_back({Vec2{left, funnel_start_y}, Vec2{basin_left, funnel_end_y}});
+    world.walls.push_back({Vec2{basin_left, funnel_end_y}, Vec2{basin_left, bottom_y - 30}});
+    world.walls.push_back({Vec2{basin_left, bottom_y - 30}, Vec2{basin_left + 30, bottom_y}});
+
+    world.walls.push_back({Vec2{right, top_y}, Vec2{right, funnel_start_y}});
+    world.walls.push_back({Vec2{right, funnel_start_y}, Vec2{basin_right, funnel_end_y}});
+    world.walls.push_back({Vec2{basin_right, funnel_end_y}, Vec2{basin_right, bottom_y - 30}});
+    world.walls.push_back({Vec2{basin_right, bottom_y - 30}, Vec2{basin_right - 30, bottom_y}});
+
+    world.walls.push_back({Vec2{basin_left + 30, bottom_y}, Vec2{basin_right - 30, bottom_y}});
+
+    for (float px = left + 80; px < right - 60; px += 110) {
+        world.walls.push_back({Vec2{px, 150}, Vec2{px + 35, 150}});
+    }
+    for (float px = left + 135; px < right - 60; px += 110) {
+        world.walls.push_back({Vec2{px, 220}, Vec2{px + 35, 220}});
+    }
+    for (float px = left + 80; px < right - 60; px += 130) {
+        world.walls.push_back({Vec2{px, 285}, Vec2{px + 40, 295}});
+    }
+
+    world.walls.push_back({Vec2{400, 400}, Vec2{500, 420}});
+    world.walls.push_back({Vec2{700, 400}, Vec2{800, 420}});
+    world.walls.push_back({Vec2{550, 450}, Vec2{650, 470}});
+
+    world.bound_left = -200;
+    world.bound_right = W + 200;
+    world.bound_top = -300;
+    world.bound_bottom = H + 400;
+}
+
+bool load_scene_csv(PhysicsWorld& world, const std::string& path, float restitution) {
+    std::ifstream file(path);
+    if (!file.is_open()) return false;
+
+    world.balls.clear();
+    world.walls.clear();
+    world.config.restitution = restitution;
+
+    setup_walls_and_bounds(world);
+
+    std::string line;
+    // Skip header
+    if (!std::getline(file, line)) return true;
+
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        std::istringstream ss(line);
+        std::string token;
+
+        Ball b;
+        b.vel = {0, 0};
+        b.inv_mass = 1.0f;
+
+        if (!std::getline(ss, token, ',')) continue;
+        b.pos.x = std::stof(token);
+
+        if (!std::getline(ss, token, ',')) continue;
+        b.pos.y = std::stof(token);
+
+        if (!std::getline(ss, token, ',')) continue;
+        b.radius = std::stof(token);
+
+        if (!std::getline(ss, token, ',')) continue;
+        uint32_t rgb = (uint32_t)std::stoul(token, nullptr, 16);
+        b.color = 0xFF000000u | rgb;
+
+        world.balls.push_back(b);
+    }
+    return true;
+}
+
+bool save_scene_csv(const PhysicsWorld& world, const std::string& path) {
+    std::ofstream file(path);
+    if (!file.is_open()) return false;
+
+    file << "x,y,radius,color\n";
+    for (const auto& b : world.balls) {
+        uint32_t rgb = b.color & 0x00FFFFFFu;
+        file << b.pos.x << "," << b.pos.y << "," << b.radius << ","
+             << std::uppercase << std::hex << std::setfill('0') << std::setw(6) << rgb << "\n";
+    }
+    return true;
 }

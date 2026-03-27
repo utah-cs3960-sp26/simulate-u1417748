@@ -11,3 +11,10 @@ struct SceneParams {
 };
 
 void setup_scene(PhysicsWorld& world, const SceneParams& params);
+
+// Load balls from a CSV file; returns true on success.
+// Walls are set up from the default scene layout.
+bool load_scene_csv(PhysicsWorld& world, const std::string& path, float restitution);
+
+// Save current ball positions to a CSV file; returns true on success.
+bool save_scene_csv(const PhysicsWorld& world, const std::string& path);

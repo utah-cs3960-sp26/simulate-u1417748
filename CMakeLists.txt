@@ -34,6 +34,10 @@ target_link_libraries(simulate PRIVATE physics_core SDL3::SDL3-static)
 add_executable(simulate_headless src/headless_main.cpp)
 target_link_libraries(simulate_headless PRIVATE physics_core)
 
+# --- Colorize tool (assigns image colors to balls based on final positions) ---
+add_executable(colorize src/colorize.cpp)
+target_link_libraries(colorize PRIVATE physics_core)
+
 # --- Tests ---
 enable_testing()
 add_executable(test_physics tests/test_physics.cpp)

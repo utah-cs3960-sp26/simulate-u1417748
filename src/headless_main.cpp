@@ -16,6 +16,8 @@ static void print_usage() {
     printf("  --substeps N      Physics substeps per frame (default: 8)\n");
     printf("  --metrics         Print metrics at end\n");
     printf("  --verbose         Print periodic metrics\n");
+    printf("  --load-csv PATH   Load initial state from CSV file\n");
+    printf("  --save-csv PATH   Save final state to CSV file\n");
     printf("  --help            Show this help\n");
 }
 
@@ -25,6 +27,8 @@ int main(int argc, char* argv[]) {
     int substeps = 8;
     bool metrics = false;
     bool verbose = false;
+    std::string load_csv;
+    std::string save_csv;
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--balls") == 0 && i + 1 < argc)
@@ -43,6 +47,10 @@ int main(int argc, char* argv[]) {
             metrics = true;
         else if (strcmp(argv[i], "--verbose") == 0)
             verbose = true;
+        else if (strcmp(argv[i], "--load-csv") == 0 && i + 1 < argc)
+            load_csv = argv[++i];
+        else if (strcmp(argv[i], "--save-csv") == 0 && i + 1 < argc)
+            save_csv = argv[++i];
         else if (strcmp(argv[i], "--help") == 0) {
             print_usage();
             return 0;
@@ -52,6 +60,12 @@ int main(int argc, char* argv[]) {
     PhysicsWorld world;
     world.config.substeps = substeps;
     setup_scene(world, scene_params);
+    if (!load_csv.empty()) {
+        if (!load_scene_csv(world, load_csv, scene_params.restitution)) {
+            fprintf(stderr, "Failed to load CSV: %s\n", load_csv.c_str());
+            return 1;
+        }
+    }
 
     printf("Headless simulation: balls=%d seed=%u restitution=%.2f frames=%d substeps=%d\n",
            scene_params.ball_count, scene_params.seed,
@@ -112,6 +126,12 @@ int main(int argc, char* argv[]) {
     if (m.max_speed > 1500.0f) {
         fprintf(stderr, "FAIL: max speed %.2f > 1500\n", m.max_speed);
         pass = false;
+    }
+
+    if (!save_csv.empty()) {
+        if (!save_scene_csv(world, save_csv)) {
+            fprintf(stderr, "Failed to save CSV: %s\n", save_csv.c_str());
+        }
     }
 
     if (pass) {
